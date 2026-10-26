@@ -1,0 +1,69 @@
+name: Build
+
+# Public repository: this always runs on GitHub-hosted runners, never on the
+# self-hosted ones (anyone's fork PR could run code there). The organization's
+# CI_RUNNER variable is visible to private repositories only, so it is not
+# read here on purpose.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Weekly rebuild picks up Ubuntu security updates.
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/ci-runner
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Smoke test the tools the workflows rely on
+        run: |
+          docker buildx build --load -t ci-runner:test .
+          docker run --rm ci-runner:test bash -lc '
+            set -e
+            gcc --version | head -1
+            make --version | head -1
+            rustup --version
+            ruby --version
+            python3 -c "import yaml"
+            shellcheck --version | head -2
+            psql --version
+            gh --version | head -1
+            docker --version
+            sudo -n true'
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag
+        id: tag
+        run: echo "tag=$(date -u +%Y%m%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        if: github.event_name != 'pull_request'
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Cyberun self-hosted GitHub Actions runner image
