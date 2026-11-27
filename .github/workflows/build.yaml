@@ -38,6 +38,7 @@ jobs:
           docker run --rm ci-runner:test bash -lc '
             set -e
             gcc --version | head -1
+            dpkg -s libnss3 libgbm1 xvfb fonts-noto-color-emoji >/dev/null
             make --version | head -1
             rustup --version
             ruby --version
