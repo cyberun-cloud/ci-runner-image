@@ -24,6 +24,21 @@ RUN apt-get update -y \
     && apt-get update -y && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
+# What `playwright install --with-deps chromium` installs on Ubuntu 24.04
+# (soulhall's component tests). Fetched per job it was ~82 MB of apt, and on
+# 2026-11-27 one shard took 7 min 10 s at 192 kB/s from the Ubuntu mirror.
+# Baked in here, the workflow only downloads the browser itself.
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends \
+       libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 \
+       libcairo2 libcups2t64 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0t64 \
+       libnspr4 libnss3 libpango-1.0-0 libx11-6 libxcb1 libxcomposite1 \
+       libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrandr2 xvfb \
+       libfontconfig1 libfreetype6 fonts-noto-color-emoji fonts-unifont \
+       fonts-liberation fonts-ipafont-gothic fonts-wqy-zenhei \
+       fonts-tlwg-loma-otf fonts-freefont-ttf xfonts-cyrillic xfonts-scalable \
+    && rm -rf /var/lib/apt/lists/*
+
 USER runner
 # No default toolchain: each repository's rust-toolchain.toml decides.
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none --profile minimal
